@@ -21,6 +21,20 @@ int an_packet_transmit(an_packet_t *an_packet)
     return SendBuf(an_packet_pointer(an_packet), an_packet_size(an_packet));
 }
 
+an_packet_t *encode_rtcm_corrections_packet(uint8_t msg_size, char *buf)
+{
+  an_packet_t *an_packet = an_packet_allocate(msg_size, packet_id_rtcm_corrections);
+  
+    if(an_packet != NULL)
+    { 
+        memcpy(an_packet->data, buf, msg_size);
+    }
+   
+    return an_packet;
+}
+
+
+
 Task::Task(std::string const& name)
     : TaskBase(name)
 {
@@ -37,13 +51,30 @@ Task::~Task()
 
 bool Task::configureHook()
 {
+	struct Args args;
 
+	an_decoder_t an_decoder;
+	an_packet_t *an_packet;
+	system_state_packet_t system_state_packet;
+
+	char buf[MAXDATASIZE];
+	int error = 0;
+	int bytes_received;
+	int numbytes = 0;
+	int remain = numbytes;
+	int pos = 0;
+    //TODO: Set args either manually or use getargs()
+	getargs(argc, argv, &args);
+    
+    //TODO: Compare args with OpenComport(args.serdevice, args.baud)
     if(OpenComport(const_cast<char*>(_port.get().c_str()), _baudrate.get())){
         LOG_ERROR_S << "Could not open port." << std::endl;
         return false;
     }
     fd = getFileDescriptor();
     an_decoder_initialise(&an_decoder);
+
+    error = ntrip_initialise(&args, buf);
 
     Geocentric earth(Constants::WGS84_a(),Constants::WGS84_f());
     base::Vector3d origin = _local_cartesian_origin.get();
@@ -88,7 +119,24 @@ void Task::updateHook()
         }
         else
         {
-            while(_external_velocity_in.read(external_velocity) == RTT::NewData){
+            //TODO: get 3D position as nmea and pass it as argument to the client
+            //Get RTCM data from server
+            error = ntrip(&args, buf, &numbytes);
+            remain = numbytes;
+            //Send Buffer in 255 Byte chunks via Packet 55(rtcm_corrections_packet) to Spatial Dual's internal GNSS receiver
+            while (remain)
+            {
+                int toCpy = remain > AN_MAXIMUM_PACKET_SIZE ? AN_MAXIMUM_PACKET_SIZE : remain;
+                an_packet = encode_rtcm_corrections_packet(toCpy, buf + pos);
+                an_packet_transmit(an_packet);
+                an_packet_free(&an_packet);
+                pos += toCpy; // Increment buffer
+                remain -= toCpy;
+            }
+            pos = 0;
+
+            while (_external_velocity_in.read(external_velocity) == RTT::NewData)
+            {
                 an_packet_t* an_packet;
                 external_body_velocity_packet_t body_vel_packet;
                 memset(&body_vel_packet, 0, sizeof(external_body_velocity_packet_t));
