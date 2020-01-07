@@ -21,6 +21,22 @@ int an_packet_transmit(an_packet_t *an_packet)
     return SendBuf(an_packet_pointer(an_packet), an_packet_size(an_packet));
 }
 
+
+
+int set_ntrip_args(struct Args *args)
+{
+    args->server = "";
+    args->port = "2101";
+    args->user = "";
+    args->password = "";
+    
+    //args->mountpoint
+    args->baud = 0;
+    args->serdevice = 0;
+
+    //args->nmea = 0;
+}
+
 an_packet_t *encode_rtcm_corrections_packet(uint8_t msg_size, char *buf)
 {
   an_packet_t *an_packet = an_packet_allocate(msg_size, packet_id_rtcm_corrections);
@@ -32,8 +48,6 @@ an_packet_t *encode_rtcm_corrections_packet(uint8_t msg_size, char *buf)
    
     return an_packet;
 }
-
-
 
 Task::Task(std::string const& name)
     : TaskBase(name)
@@ -63,10 +77,26 @@ bool Task::configureHook()
 	int numbytes = 0;
 	int remain = numbytes;
 	int pos = 0;
-    //TODO: Set args either manually or use getargs()
-	getargs(argc, argv, &args);
-    
-    //TODO: Compare args with OpenComport(args.serdevice, args.baud)
+
+    //Difference: mountpoint is set via encodeurl() 
+	//getargs(argc, argv, &args);
+
+    //TODO Set args manually
+    //Problem with this approach: Struct type has no field "mountpoint"
+    args.server = "www.openservice-sapos.niedersachsen.de"; 
+    args.port = "2101";
+    args.user = "ni_DFKIRIC2";
+    args.password = "aJi1-4o24";
+
+    //==mountpoint?
+    args.data = "VRS_3_2G_NI";
+
+    args.serdevice = const_cast<char*>(_port.get().c_str());  
+    args.baud = _baudrate.get();
+
+
+    //Open the com port; Compare with
+     //OpenComport(args.serdevice, args.baud) from ntrip_example.c
     if(OpenComport(const_cast<char*>(_port.get().c_str()), _baudrate.get())){
         LOG_ERROR_S << "Could not open port." << std::endl;
         return false;
@@ -118,12 +148,16 @@ void Task::updateHook()
             //TODO handle timeout
         }
         else
-        {
-            //TODO: get 3D position as nmea and pass it as argument to the client
-            //Get RTCM data from server
+        {   
+        //RTK Correction
+            //TODO 1. Get 3D position as nmea and set it as arg
+            
+            //args.nmea = "";
+
+            //2. Get RTCM correction from Ntrip server
             error = ntrip(&args, buf, &numbytes);
             remain = numbytes;
-            //Send Buffer in 255 Byte chunks via Packet 55(rtcm_corrections_packet) to Spatial Dual's internal GNSS receiver
+            //3. Send RTK-Correction data via Packet 55 (rtcm_corrections_packet) to Spatial Dual's internal GNSS receiver (Split Buffer in 255 Byte chunks).
             while (remain)
             {
                 int toCpy = remain > AN_MAXIMUM_PACKET_SIZE ? AN_MAXIMUM_PACKET_SIZE : remain;
@@ -135,6 +169,7 @@ void Task::updateHook()
             }
             pos = 0;
 
+        //Odemetry   
             while (_external_velocity_in.read(external_velocity) == RTT::NewData)
             {
                 an_packet_t* an_packet;
@@ -149,6 +184,7 @@ void Task::updateHook()
                 an_packet_transmit(an_packet);
                 an_packet_free(&an_packet);
             }
+
             if ((bytes_received = PollComport(an_decoder_pointer(&an_decoder), an_decoder_size(&an_decoder))) > 0)
             {
                 /* increment the decode buffer length by the number of bytes received */
