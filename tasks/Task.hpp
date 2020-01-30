@@ -45,13 +45,12 @@ tasks/Task.cpp, and will be put in the imu_an_spatial namespace.
     quaternion_orientation_packet_t quaternion_orientation_packet;
     quaternion_orientation_standard_deviation_packet_t quaternion_orientation_standard_deviation_packet;
 
-    int bytes_received;
     int fd;
-	struct Args args;
+	struct Args args; //Init args struct for RTK config
 
-	char buf[MAXDATASIZE];
-	int error = 0;
-	int bytes_received;
+	char buf[MAXDATASIZE];  //Set max package information size
+	int error = 0;          //Keep track of runtime errors
+	int bytes_received;     
 	int numbytes = 0;
 	int remain = numbytes;
 	int pos = 0;

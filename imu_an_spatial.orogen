@@ -12,8 +12,9 @@ version "0.1"
 #
 using_library "imu_an_spatial"
 import_types_from "gps_base"
-
-# import_types_from "imu_an_spatial/CustomType.hpp"
+import_types_from "imu_an_spatial"
+import_types_from "imu_an_spatialTypes.hpp"
+import_types_from "imu_an_spatial/ntripclient.h"
 
 # If this project uses data types that are defined in other oroGen projects,
 # these projects should be imported there as well.
@@ -38,6 +39,7 @@ task_context "Task" do
         doc 'Switch IMU axis convention from NED(Advanced Navigation default) to NWU(Rock default)' 
     property("local_cartesian_origin", "base/Vector3d").doc("Origin of local cartesion coordinate system in lat/lon/height")
     property("external_velocity_std_dev", "float", 0.001)
+    #property("ntrip_config", "imu_an_spatial/ntripConfig").doc("Configuration of the args for connecting to the ntrip client in order to receive RTK correction data. ")
 
     #Input of external velocity. e.g. odometry in robot frame
     input_port "external_velocity_in", "/base/samples/RigidBodyState"
@@ -45,7 +47,9 @@ task_context "Task" do
     output_port "imu_samples", "base/samples/IMUSensors"
     output_port "imu_pose", "base/samples/RigidBodyState"
     output_port "gps_solution", "/gps_base/Solution"
-
+    output_port "ntrip_connection_error", "int"
+    output_port "ntrip_size_received_correction_data", "int"
+    
     # If you want that component's updateHook() to be executed when the "input"
     # port gets data, uncomment this and comment the 'periodic' line
     # port_driven "input"

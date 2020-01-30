@@ -4,7 +4,6 @@
 #include <rtt/extras/FileDescriptorActivity.hpp>
 #include <math.h>
 #include <imu_an_spatial/rs232/rs232.h>
-//#include <imu_an_spatial/ntripclient.h>
 #include <base-logging/Logging.hpp>
 #include <base/Time.hpp>
 #include <iostream>
@@ -50,23 +49,25 @@ Task::~Task()
 
 bool Task::configureHook()
 {
-    //Difference: mountpoint is set via encodeurl() 
-	//getargs(argc, argv, &args);
-
-    //TODO Set args manually
-    //Problem with this approach: Struct type has no field "mountpoint"
+    //Set args manually
+    //TODO: Outsource to config struct and take as orogen property
     args.server = "www.openservice-sapos.niedersachsen.de"; 
     args.port = "2101";
     args.user = "ni_DFKIRIC2";
     args.password = "aJi1-4o24";
-
-    //==mountpoint?
-    args.data = "VRS_3_2G_NI";
-
+    args.data = "VRS_3_2G_NI"; //args.data ^= mountpoint //TODO: Method that automatically chooses the region-dependend correct mountpoint.
+    //Get serial device and baudrate from task properties
     args.serdevice = const_cast<char*>(_port.get().c_str());  
     args.baud = _baudrate.get();
-
-
+    //Set default values for all other args
+    //args.nmea = 0;
+    args.bitrate = 0;
+    args.proxyhost = 0;
+    args.proxyport = "2101";
+    args.mode = AUTO;
+    args.initudp = 0;
+    args.udpport = 0;
+    
     //Open the com port; Compare with
      //OpenComport(args.serdevice, args.baud) from ntrip_example.c
     if(OpenComport(const_cast<char*>(_port.get().c_str()), _baudrate.get())){
@@ -76,7 +77,9 @@ bool Task::configureHook()
     fd = getFileDescriptor();
     an_decoder_initialise(&an_decoder);
 
+    //Try to establish connection to the ntrip client and return an error status
     error = ntrip_initialise(&args, buf);
+    _ntrip_connection_error.write(error);
 
     Geocentric earth(Constants::WGS84_a(),Constants::WGS84_f());
     base::Vector3d origin = _local_cartesian_origin.get();
@@ -107,7 +110,6 @@ void Task::updateHook()
     gps_base::Solution sol;
     base::samples::RigidBodyState external_velocity;
     gps_base::Errors errors;
-
     
     if (fd_activity)
     {
@@ -120,16 +122,23 @@ void Task::updateHook()
             //TODO handle timeout
         }
         else
-        {   
-        //RTK Correction
+        {
+        //SEND packages to SpatialDual   
+            //RTK Correction
             //TODO 1. Get 3D position as nmea and set it as arg
-            
             //args.nmea = "";
+
+            //Preliminary set fixed nmea (generated): 
+            args.nmea = "$GPGGA,092221.913,5306.730,N,00851.493,E,1,12,1.0,0.0,M,0.0,M,,*69";
 
             //2. Get RTCM correction from Ntrip server
             error = ntrip(&args, buf, &numbytes);
             remain = numbytes;
+            _ntrip_connection_error.write(error);
+            _ntrip_size_received_correction_data.write(remain);
+            
             //3. Send RTK-Correction data via Packet 55 (rtcm_corrections_packet) to Spatial Dual's internal GNSS receiver (Split Buffer in 255 Byte chunks).
+            //TEST Observe rtcm package content in package viewer and check results
             while (remain)
             {
                 int toCpy = remain > AN_MAXIMUM_PACKET_SIZE ? AN_MAXIMUM_PACKET_SIZE : remain;
@@ -141,7 +150,7 @@ void Task::updateHook()
             }
             pos = 0;
 
-        //Odemetry   
+            //Odemetry   
             while (_external_velocity_in.read(external_velocity) == RTT::NewData)
             {
                 an_packet_t* an_packet;
@@ -156,7 +165,7 @@ void Task::updateHook()
                 an_packet_transmit(an_packet);
                 an_packet_free(&an_packet);
             }
-
+        //Receive packages from SpatialDual
             if ((bytes_received = PollComport(an_decoder_pointer(&an_decoder), an_decoder_size(&an_decoder))) > 0)
             {
                 /* increment the decode buffer length by the number of bytes received */
