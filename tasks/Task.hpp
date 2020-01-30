@@ -6,6 +6,7 @@
 #include "imu_an_spatial/TaskBase.hpp"
 #include <imu_an_spatial/an_packet_protocol.h>
 #include <imu_an_spatial/spatial_packets.h>
+#include <imu_an_spatial/ntripclient.h>
 #include <GeographicLib/LocalCartesian.hpp>
 
 namespace imu_an_spatial{
@@ -36,7 +37,6 @@ tasks/Task.cpp, and will be put in the imu_an_spatial namespace.
     double lat, lon, height;
     base::Orientation ori;
 
-
     an_decoder_t an_decoder;
     an_packet_t *an_packet;
 
@@ -47,6 +47,14 @@ tasks/Task.cpp, and will be put in the imu_an_spatial namespace.
 
     int bytes_received;
     int fd;
+	struct Args args;
+
+	char buf[MAXDATASIZE];
+	int error = 0;
+	int bytes_received;
+	int numbytes = 0;
+	int remain = numbytes;
+	int pos = 0;
 
     public:
         /** TaskContext constructor for Task

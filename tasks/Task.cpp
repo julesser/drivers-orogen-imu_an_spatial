@@ -4,6 +4,7 @@
 #include <rtt/extras/FileDescriptorActivity.hpp>
 #include <math.h>
 #include <imu_an_spatial/rs232/rs232.h>
+//#include <imu_an_spatial/ntripclient.h>
 #include <base-logging/Logging.hpp>
 #include <base/Time.hpp>
 #include <iostream>
@@ -19,22 +20,6 @@ int an_packet_transmit(an_packet_t *an_packet)
 {
     an_packet_encode(an_packet);
     return SendBuf(an_packet_pointer(an_packet), an_packet_size(an_packet));
-}
-
-
-
-int set_ntrip_args(struct Args *args)
-{
-    args->server = "";
-    args->port = "2101";
-    args->user = "";
-    args->password = "";
-    
-    //args->mountpoint
-    args->baud = 0;
-    args->serdevice = 0;
-
-    //args->nmea = 0;
 }
 
 an_packet_t *encode_rtcm_corrections_packet(uint8_t msg_size, char *buf)
@@ -65,19 +50,6 @@ Task::~Task()
 
 bool Task::configureHook()
 {
-	struct Args args;
-
-	an_decoder_t an_decoder;
-	an_packet_t *an_packet;
-	system_state_packet_t system_state_packet;
-
-	char buf[MAXDATASIZE];
-	int error = 0;
-	int bytes_received;
-	int numbytes = 0;
-	int remain = numbytes;
-	int pos = 0;
-
     //Difference: mountpoint is set via encodeurl() 
 	//getargs(argc, argv, &args);
 
