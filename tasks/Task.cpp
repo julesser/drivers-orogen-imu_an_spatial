@@ -60,7 +60,7 @@ bool Task::configureHook()
     args.serdevice = const_cast<char*>(_port.get().c_str());  
     args.baud = _baudrate.get();
     //Set default values for all other args
-    //args.nmea = 0;
+    args.nmea = 0;
     args.bitrate = 0;
     args.proxyhost = 0;
     args.proxyport = "2101";
@@ -125,11 +125,11 @@ void Task::updateHook()
         {
         //SEND packages to SpatialDual   
             //RTK Correction
-            //TODO 1. Get 3D position as nmea and set it as arg
+            //(1. Get 3D position as nmea and set it as arg) //FIX: Propably not necessary if mountpoint is manually set, since position only needed to determine nearest mountpoint!
             //args.nmea = "";
 
             //Preliminary set fixed nmea (generated): 
-            args.nmea = "$GPGGA,092221.913,5306.730,N,00851.493,E,1,12,1.0,0.0,M,0.0,M,,*69";
+            //args.nmea = "$GPGGA,092221.913,5306.730,N,00851.493,E,1,12,1.0,0.0,M,0.0,M,,*69";
 
             //2. Get RTCM correction from Ntrip server
             error = ntrip(&args, buf, &numbytes);
@@ -138,7 +138,8 @@ void Task::updateHook()
             _ntrip_size_received_correction_data.write(remain);
             
             //3. Send RTK-Correction data via Packet 55 (rtcm_corrections_packet) to Spatial Dual's internal GNSS receiver (Split Buffer in 255 Byte chunks).
-            //TEST Observe rtcm package content in package viewer and check results
+            //FIX: gnss_fixe_type does not change to 'rtk_fixed'.
+            //     Observe rtcm package content in package viewer and check what data actually is received from client.
             while (remain)
             {
                 int toCpy = remain > AN_MAXIMUM_PACKET_SIZE ? AN_MAXIMUM_PACKET_SIZE : remain;
@@ -223,7 +224,7 @@ void Task::updateHook()
                             LOG_INFO("\tLatitude = %f, Longitude = %f, Height = %f\n", system_state_packet.latitude * RADIANS_TO_DEGREES, system_state_packet.longitude * RADIANS_TO_DEGREES, system_state_packet.height);
                             LOG_INFO("\tRoll = %f, Pitch = %f, Heading = %f\n", system_state_packet.orientation[0] * RADIANS_TO_DEGREES, system_state_packet.orientation[1] * RADIANS_TO_DEGREES, system_state_packet.orientation[2] * RADIANS_TO_DEGREES);
 
-
+                            
                             gnss_fix_type_e gnss_fix_type = static_cast<gnss_fix_type_e>(system_state_packet.filter_status.b.gnss_fix_type);
                             switch(gnss_fix_type){
                                 case gnss_fix_none: sol.positionType = gps_base::NO_SOLUTION; break;
